@@ -1,0 +1,41 @@
+name: Build AlgoPilot (Windows + macOS)
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -q tests
+
+  build:
+    needs: test
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements-dev.txt
+      - run: pyinstaller --noconfirm --clean algopilot.spec
+      - name: Zip Windows build
+        if: runner.os == 'Windows'
+        run: Compress-Archive -Path dist/AlgoPilot -DestinationPath AlgoPilot-windows.zip
+      - name: Zip macOS build
+        if: runner.os == 'macOS'
+        run: ditto -c -k --keepParent dist/AlgoPilot.app AlgoPilot-macos.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AlgoPilot-${{ runner.os }}
+          path: AlgoPilot-*.zip
